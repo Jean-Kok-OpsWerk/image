@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List Manager</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #623be3;
+            margin: 0;
+            padding: 0;
+            background-image: url('https://jean-kok-opsWerk.github.io/image/images/dep_logo.png'); /* Replace with your image URL */
+            background-position: top right;
+            background-repeat: no-repeat;
+            background-size: 100px 100px; /* Adjust size as needed */
+        }
+        .container {
+            width: 400px;
+            margin: 50px auto;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        header {
+            text-align: center;
+            color: black;
+        }
+        .task-input {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 20px;
+        }
+        #taskInput, #taskDate {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        #addTaskButton {
+            padding: 10px 15px;
+            border: none;
+            background-color: #28a745;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #addTaskButton:hover {
+            background-color: #218838;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #ccc;
+            cursor: pointer;
+            background-color: #ffffff;
+            color: black;
+            border-radius: 5px;
+            margin: 5px 0;
+        }
+        li:hover {
+            background-color:rgb(232, 232, 232);
+        }
+        li.completed span {
+            text-decoration: line-through;
+            color: #888;
+        }
+        .delete-button {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .delete-button:hover {
+            background-color: #c82333;
+        }
+        input[type="checkbox"] {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>To-Do List Manager</h1>
+        </header>
+        <div class="task-input">
+            <input type="text" id="taskInput" placeholder="Add a new task...">
+            <input type="date" id="taskDate">
+            <button id="addTaskButton">Add Task</button>
+        </div>
+        <ul id="taskList"></ul>
+    </div>
+    <script>
+        document.getElementById('addTaskButton').addEventListener('click', addTask);
+
+        function addTask() {
+            const taskInput = document.getElementById('taskInput');
+            const taskDate = document.getElementById('taskDate');
+            const taskText = taskInput.value.trim();
+            const taskDueDate = taskDate.value;
+
+            if (taskText === '' || taskDueDate === '') {
+                alert('Please enter a task and select a due date!');
+                return;
+            }
+
+            fetch('/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: taskText, dueDate: taskDueDate, done: false })
+            })
+            .then(response => response.json())
+            .then(task => {
+                const taskList = document.getElementById('taskList');
+                const li = document.createElement('li');
+                li.setAttribute('data-id', task.id); // Store the task ID for later use
+
+                li.innerHTML = ` 
+                    <input type="checkbox" onclick="toggleTask(${task.id}, this, event)">
+                    <span>${task.title} (Due: ${task.dueDate})</span>
+                    <button class="delete-button" onclick="deleteTask(${task.id}, this)">Delete</button>
+                `;
+
+                li.classList.toggle('completed', task.done);
+                li.addEventListener('click', function(event) {
+                    // Prevent the event from triggering on checkbox or delete button
+                    if (event.target !== li.querySelector('input[type="checkbox"]') && event.target !== li.querySelector('.delete-button')) {
+                        window.location.href = `/tasks/${task.id}`; // Navigate to the specific task page
+                    }
+                });
+
+                taskList.appendChild(li);
+                taskInput.value = '';
+                taskDate.value = '';
+            });
+        }
+
+        function toggleTask(taskId, checkbox, event) {
+            // Prevent checkbox click from triggering the task navigation
+            event.stopPropagation(); 
+
+            fetch(`/tasks/${taskId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ done: checkbox.checked })
+            })
+            .then(response => response.json())
+            .then(task => {
+                const li = checkbox.parentElement;
+                const taskText = li.querySelector('span');
+                taskText.classList.toggle('completed', task.done); // Only cross out the task text
+            });
+        }
+
+        function deleteTask(taskId, button, event) {
+            // Prevent the click event from propagating to the <li> element
+            event.stopPropagation();
+
+            fetch(`/tasks/${taskId}`, { method: 'DELETE' })
+            .then(response => response.json())
+            .then(() => {
+                const li = button.parentElement;
+                li.remove();
+            });
+        }
+
+        function loadTasks() {
+            fetch('/tasks')
+            .then(response => response.json())
+            .then(data => {
+                const taskList = document.getElementById('taskList');
+                data.tasks.forEach(task => {
+                    const li = document.createElement('li');
+                    li.setAttribute('data-id', task.id);
+
+                    li.innerHTML = ` 
+                        <input type="checkbox" onclick="toggleTask(${task.id}, this, event)" ${task.done ? 'checked' : ''}>
+                        <span>${task.title} (Due: ${task.dueDate})</span>
+                        <button class="delete-button" onclick="deleteTask(${task.id}, this, event)">Delete</button>
+                    `;
+
+                    li.classList.toggle('completed', task.done);
+                    li.addEventListener('click', function() {
+                        window.location.href = `/tasks/${task.id}`; // Navigate to the specific task page
+                    });
+
+                    taskList.appendChild(li);
+                });
+            });
+        }
+
+        // Load tasks when the page loads
+        window.onload = loadTasks;
+    </script>
+</body>
+</html>
